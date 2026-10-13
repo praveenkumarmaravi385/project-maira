@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maira AI Assistant</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #07152c;
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+    main { max-width: 600px; margin: auto; }
+    h1 { color: #40d9ff; text-align: center; }
+    #chat {
+      min-height: 260px;
+      max-height: 50vh;
+      overflow-y: auto;
+      padding: 12px;
+      background: #102541;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .message { margin-bottom: 16px; }
+    .who { color: #40d9ff; font-weight: bold; }
+    form { display: flex; gap: 8px; margin-top: 12px; }
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #42618b;
+      background: #0b1b33;
+      color: white;
+    }
+    button {
+      padding: 12px;
+      border: 0;
+      border-radius: 8px;
+      background: #087fc1;
+      color: white;
+    }
+    #status { color: #a9c7e8; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>MAIRA AI</h1>
+  <p>नमस्ते! मैं Maira हूँ। मुझसे हिंदी में बात करो।</p>
+
+  <div id="chat" aria-live="polite"></div>
+
+  <form id="form">
+    <input id="question" placeholder="अपना सवाल लिखो..." required>
+    <button id="send" type="submit">भेजो</button>
+  </form>
+  <p id="status">तैयार हूँ।</p>
+</main>
+
+<script>
+  const WORKER_URL =
+    "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("form");
+  const question = document.getElementById("question");
+  const status = document.getElementById("status");
+  const send = document.getElementById("send");
+
+  function showMessage(who, text) {
+    const div = document.createElement("div");
+    div.className = "message";
+
+    const label = document.createElement("span");
+    label.className = "who";
+    label.textContent = who + ": ";
+
+    div.append(label, document.createTextNode(text));
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const message = question.value.trim();
+    if (!message || send.disabled) return;
+
+    if (!WORKER_URL.startsWith("https://") ||
+        WORKER_URL.includes("PASTE_YOUR")) {
+      status.textContent =
+        "पहले अपना Cloudflare Worker URL डालो।";
+      return;
+    }
+
+    showMessage("तुम", message);
+    question.value = "";
+    send.disabled = true;
+    status.textContent = "Maira जवाब तैयार कर रही है...";
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+        signal: controller.signal
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.answer) {
+        throw new Error(data.error || "AI जवाब नहीं मिला।");
+      }
+
+      showMessage("Maira", data.answer);
+      status.textContent = "जवाब मिल गया।";
+    } catch (error) {
+      status.textContent = error.name === "AbortError"
+        ? "इंटरनेट धीमा है। फिर से कोशिश करो।"
+        : "समस्या: " + error.message;
+    } finally {
+      clearTimeout(timeout);
+      send.disabled = false;
+      question.focus();
+    }
+  });
+</script>
+</body>
+  </html>
+  
